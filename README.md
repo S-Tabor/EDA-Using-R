@@ -7,3 +7,6 @@ This project involved investigating loan data from Prosper, a marketplace lendin
 This project was carried out using Udacity's online workspace, hence, only the completed project given as a html file is given here. Please note that GitHub does not currently support viewing files this large; please download the file if you would like to view my project. 
 
 Thank you for taking the time to look at my work :)
+
+
+[Snippet of project: one of my final plots](plot_1.PNG)
