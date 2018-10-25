@@ -1,0 +1,1488 @@
+---
+title: "Loan Data Exploration by Sean Tabor"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, echo=F, message=F, warning=F}
+# Loading appropriate libraries
+library(ggplot2)
+library(GGally)
+library(dplyr)
+library(lubridate)
+
+```
+
+
+This report will be investigating loan data obtained by Prosper, a marketplace 
+lending platform.
+
+
+
+# Data Set and Variables Section
+
+
+```{r, echo=F, message=F, warning=F}
+
+loan_data = read.csv("prosperLoanData.csv")
+
+```
+
+
+
+```{r, echo=F, message=F, warning=F}
+
+# Inspecting number of observations and variables
+
+dim(loan_data)
+```
+
+The data set consists of 113,937 observations of 81 variables.
+
+```{r, echo=F, message=F, warning=F}
+
+# Count of differetn types of data in data frame
+table(sapply(loan_data, class))
+
+```
+
+
+
+```{r, echo=F, message=F, warning=F}
+#str(loan_data, list.len=ncol(loan_data))
+str(loan_data)
+```
+
+
+
+```{r,echo=F, message=F, warning=F}
+summary(loan_data[,sapply(loan_data,is.factor)])
+```
+
+
+Therefore, we can see that the Prosper loan data contains 113,937 observations 
+and 81 different variables. Out of these variables, it is possible to see that 
+exactly 20 of them are factors (categorical variables). 
+
+
+
+
+
+* * *
+# Univariate Plots Section
+
+
+
+* **"CreditGrade"**
+
+```{r, echo=F, message=F, warning=F}
+str(loan_data$CreditGrade)
+```
+
+
+Ordering by largest to smallest counts:
+
+```{r, echo=F, message=F, warning=F}
+ggplot(data = loan_data, 
+       aes(x = reorder(CreditGrade, -table(CreditGrade)[CreditGrade]))) +
+  geom_bar()
+```
+
+
+```{r, echo=F, message=F, warning=F}
+levels(loan_data$CreditGrade)
+table(loan_data$CreditGrade)
+```
+
+
+There appears to be a large number of observations (84,984) in an unnamed 
+category. Removing this category:
+
+
+```{r, echo=F, message=F, warning=F}
+ggplot(data = loan_data %>% filter(CreditGrade != ""), 
+       aes(x = reorder(CreditGrade, -table(CreditGrade)[CreditGrade]))) +
+  geom_bar()
+```
+
+There appears to be very little observations with a "NC" credit grade. As they 
+have a similar amount of counts and are at opposite ends of the spectrum, 
+comparing "AA" ratings with "HR" (High Risk) ratings in the bivariate section 
+could provide some interesting results.
+
+
+
+
+
+
+
+* **"Term"**
+
+
+```{r, echo=F, message=F, warning=F}
+str(loan_data$Term)
+```
+
+
+```{r, echo=F, message=F, warning=F}
+ggplot(data = loan_data, aes(x = Term)) + 
+  geom_histogram(binwidth = 1) +
+  scale_x_continuous(breaks = seq(12,60,12))
+```
+
+Term appears to be split into three discrete levels.
+
+```{r, echo=F, message=F, warning=F}
+summary(loan_data$Term)
+table(loan_data$Term)
+```
+
+
+
+Converting the "Term" variable into a categorical variable:
+
+```{r, echo=F, message=F, warning=F}
+loan_data <- loan_data %>% 
+  mutate(Term_factor = as.factor(Term)) 
+```
+
+```{r, echo=F, message=F, warning=F}
+ggplot(data = loan_data, aes(x = as.factor(Term))) + 
+  geom_bar()
+```
+
+
+
+```{r, echo=F, message=F, warning=F}
+prop.table(table(loan_data$Term_factor))
+```
+
+A term of 36 months appears to be far the most common while 12 month loans
+appear to be quite rare. It might be interesting to investigate the difference 
+between the different terms; I would suspect income range, amount of debt, and 
+credit grade may be significant here (but I may be wrong!).
+
+
+
+
+
+
+* **"BorrowerAPR"**
+
+```{r, echo=F, message=F, warning=F}
+str(loan_data$BorrowerAPR)
+```
+
+
+```{r,echo=F, message=F, warning=F, fig.width=10, fig.height=4}
+ggplot(data = loan_data, aes(x = BorrowerAPR)) + 
+  geom_histogram(binwidth = 0.01) +
+  scale_x_continuous(breaks = seq(0, 0.5, 0.05))
+```
+
+This has a wide distribution with a noticeable peak just above 0.35%. 
+
+```{r, echo=F, message=F, warning=F}
+summary(loan_data$BorrowerAPR)
+```
+
+
+
+Decreasing the binwidth and zooming in on the bulk of the data slightly:
+
+```{r,echo=F, message=F, warning=F, fig.width=10, fig.height=4}
+ggplot(data = loan_data, aes(x = BorrowerAPR)) + 
+  geom_histogram(binwidth = 0.001) +
+  xlim(0.05, 0.425)
+```
+
+
+
+
+It is possible to find the prominent peak just above 0.35% by calculating 
+the mode:
+```{r, echo=F, message=F, warning=F }
+h <- hist(loan_data$BorrowerAPR, breaks = 113912, plot = FALSE)
+mode <- h$mids[h$counts == max(h$counts)]
+mode
+```
+
+
+
+
+
+
+
+
+
+
+* **"ListingCategory..numeric."**
+  
+
+```{r, echo=F, message=F, warning=F}
+str(loan_data$ListingCategory..numeric.)
+```
+
+
+```{r,echo=F, message=F, warning=F}
+ggplot(data = loan_data, aes(x = as.factor(ListingCategory..numeric.))) + 
+  geom_bar() +
+  labs(x = "Listing Category") 
+```
+
+
+
+Reordering by count, largest to smallest, and adding a cumulative bar plot:
+
+```{r, fig.width=10, fig.height=4, echo=F, message=F, warning=F}
+ggplot(data = loan_data 
+       %>% group_by(ListingCategory..numeric.) 
+       %>% summarise(n = n()) %>% arrange(desc(n)) 
+       %>% ungroup(), aes(x = factor(ListingCategory..numeric., 
+                          levels = ListingCategory..numeric.), y = n)) + 
+  geom_col(fill = "black") +
+  geom_col(aes(y = cumsum(n)), alpha = 0.3, fill = "darkblue") +
+  geom_hline(yintercept = 0.8*length(loan_data$ListingCategory..numeric.),
+             color="red", linetype = 2) +
+  geom_text(aes(x = "2", y = 98000, label = "~80%"))  
+```
+
+
+```{r, echo=F, message=F, warning=F}
+prop.table(table(loan_data$ListingCategory..numeric.))
+```
+
+Listing category 1 (debt consolidation) is listed as the reason for over half 
+of the loans. It can also be seen that the first four categories (~20% of them)
+account for over 80% of the total loan types. It may be interesting to see if 
+some loan types come with certain conditions (i.e. term length).
+
+
+
+
+
+
+
+* **"EmploymentStatus"**
+
+
+```{r, echo=F, message=F, warning=F}
+str(loan_data$EmploymentStatus)
+
+```
+
+Ordering by count, highest to lowest:
+
+```{r, fig.width= 10, fig.height= 4 , echo=F, message=F, warning=F}
+ggplot(data = loan_data, aes(x = reorder(EmploymentStatus, -table(EmploymentStatus)[EmploymentStatus]))) + 
+  geom_bar() +
+  labs(x = "EmplotmentStatus")
+```
+
+
+```{r, echo=F, message=F, warning=F}
+table(loan_data$EmploymentStatus)
+```
+
+There are 2255 entries assigned to an unnamed category.
+
+
+```{r, echo=F, message=F, warning=F}
+prop.table(table(loan_data$EmploymentStatus))
+```
+
+A large proportion of people are listed as employed or full-time. I would suspect being listed as "Not employed" would be detrimental towards receiving a loan but it would be good to check this by comparing it to those listed as "Employed".
+
+
+
+
+
+* **"EmploymentStatusDuration"**
+
+
+```{r, echo=F, message=F, warning=F}
+str(loan_data$EmploymentStatusDuration)
+```
+
+```{r, echo=F, message=F, warning=F}
+ggplot(data = loan_data, aes(x = EmploymentStatusDuration)) +
+  geom_histogram(binwidth = 3)
+```
+
+
+
+
+Applying a square-root transformation, due to the strong right skew, to generate a more normal distribution:
+
+```{r, fig.width=15, fig.height=4, echo=F, message=F, warning=F}
+ggplot(data = loan_data, aes(x = EmploymentStatusDuration/12)) +
+  geom_histogram() +
+  scale_x_sqrt(limits = c(0,50), breaks = seq(0,50,5))
+  
+```
+
+
+```{r, echo=F, message=F, warning=F}
+summary(loan_data$EmploymentStatusDuration/12)
+
+```
+
+Here, the x-axis has been converted to years (instead of months), with a typical employment length likely to be between 5.6-8 years.
+
+
+
+
+
+
+
+* **"IsBorrowerHomeowner"**
+
+
+```{r, echo=F, message=F, warning=F}
+str(loan_data$IsBorrowerHomeowner)
+```
+
+Proportion of homeowners:
+```{r, echo=F, message=F, warning=F}
+prop.table(table(loan_data$IsBorrowerHomeowner))
+```
+
+The proportion of people who do and don't own homes is very evenly split - almost 50:50. It would be interesting to look for differences in loan typed between these two groups.
+
+
+
+
+
+
+
+
+
+* **"CurrentCreditLines"**
+
+
+```{r, echo=F, message=F, warning=F}
+str(loan_data$CurrentCreditLines)
+```
+
+
+```{r, fig.width=10, fig.height=4, echo=F, message=F, warning=F}
+ggplot(data = loan_data, aes(x = CurrentCreditLines)) + 
+  geom_histogram() 
+```
+
+This appears to be a normal distribution with a moderate amount of right-skew.
+
+Decreasing the binwidth, applying a square-root transformation to decrease the amount of skew, and zooming in slightly:
+
+```{r, fig.width=10, fig.height=4, echo=F, message=F, warning=F}
+ggplot(data = loan_data, aes(x = CurrentCreditLines)) + 
+  geom_histogram(binwidth = 0.1) +
+  scale_x_sqrt(breaks = seq(0,35,5))+
+  coord_cartesian(xlim = c(0,35))
+```
+
+```{r, echo=F, message=F, warning=F}
+summary(loan_data$CurrentCreditLines)
+```
+
+The number of current credit lines can be seen to take integer values with a typical value of 10 as seen from the median and mean.
+
+
+
+
+
+
+
+* **"OpenRevolvingAccounts"**
+
+```{r, echo=F, message=F, warning=F}
+str(loan_data$OpenRevolvingAccounts)
+```
+
+
+```{r, fig.width=10, fig.height=4, echo=F, message=F, warning=F}
+ggplot(data = loan_data, aes(x=OpenRevolvingAccounts)) +
+  geom_histogram(binwidth = 1) +
+  scale_x_continuous(breaks = seq(0,50,2))
+```
+
+
+Here there is almost normal distribution with moderate right-skew present. Again, applying a square root transformation to generate a more normal distribution and zooming in to exclude outliers:
+
+```{r, fig.width=10, fig.height=4, echo=F, message=F, warning=F}
+ggplot(data = loan_data, aes(x=OpenRevolvingAccounts)) +
+  geom_histogram(binwidth = 0.05)+
+  scale_x_sqrt(breaks = seq(0,30,2)) + 
+  coord_cartesian(xlim = c(0,28))
+```
+
+```{r, echo=F, message=F, warning=F}
+summary(loan_data$OpenRevolvingAccounts)
+
+
+```
+
+A typical number of revolving accounts is likely to be around 6 or 7 from looking at mean and median values.
+
+I would assume that the current number of credit lines or revolving accounts would have some impact on what type of loan a person could receive. Comparing these variables with loan amount or APR could confirm this.
+
+
+
+
+
+
+
+
+
+* **"InquiriesLast6Months"**
+
+```{r, echo=F, message=F, warning=F}
+str(loan_data$InquiriesLast6Months)
+```
+
+```{r, echo=F, message=F, warning=F}
+ggplot(data = loan_data, aes(x = InquiriesLast6Months)) +
+  geom_histogram(binwidth = 1)
+```
+
+This is a strongly right-skewed distribution due to some extreme outliers.
+
+
+```{r, echo=F, message=F, warning=F}
+summary(loan_data$InquiriesLast6Months)
+```
+
+
+Zooming in to exclude extreme outliers:
+
+```{r, fig.width=12, fig.height=4, echo=F, message=F, warning=F}
+ggplot(data  = loan_data, aes(x = InquiriesLast6Months)) +
+  geom_bar() +
+  coord_cartesian(xlim = c(0,20)) +
+  scale_x_continuous(breaks = seq(0, 20, 1))
+```
+
+The number of inquiries in the last 6 months is in integer values and has the appearance of exponentially decreasing.
+
+
+```{r, echo=F, message=F, warning=F}
+prop.table(table(cut(loan_data$InquiriesLast6Months, c(-0.1,2,10,105))))
+```
+
+The majority of people (over 80%) had made two or less inquiries in the last 6 months.
+
+
+
+
+
+
+
+
+* **"DelinquenciesLast7Years"**
+
+
+```{r, echo=F, message=F, warning=F}
+str(loan_data$DelinquenciesLast7Years)
+```
+
+```{r, echo=F, message=F, warning=F, fig.width=10, fig.height=5}
+ggplot(data = loan_data, aes(x = DelinquenciesLast7Years)) + 
+  geom_histogram(binwidth = 5)
+```
+
+```{r, echo=F, message=F, warning=F}
+summary(loan_data$DelinquenciesLast7Years)
+```
+
+
+```{r, echo=F, message=F, warning=F}
+prop.table(table(cut(loan_data$DelinquenciesLast7Years, c(-1,0.9,75,99))))
+```
+
+
+This distribution is strongly right-skewed seen by the very long right tail, and has a large number of observations with zero delinquencies in the last 7 years. It might make more sense to split this into two groups: people with no delinquencies, and people who have had one or more delinquencies.
+
+Filtering out zero values and zooming in on the data to exclude outliers:
+
+```{r, fig.width=10, fig.height=5, echo=F, message=F, warning=F}
+ggplot(data = loan_data %>% filter(DelinquenciesLast7Years != 0), aes(x = DelinquenciesLast7Years)) + 
+  geom_histogram(binwidth = 0.5) +
+  coord_cartesian(x = c(1, 30), ylim = c(0,4500)) +
+  scale_x_continuous(breaks = seq(0,30, 1))
+```
+
+Therefore, the distribution appears to be exponentially decreasing, with the peak still clustered towards zero.
+
+
+Calculating summary statistics for cases where "DelinquenciesLast7Years" does not equal zero:
+
+```{r, echo=F, message=F, warning=F}
+loan_data %>% 
+  select(DelinquenciesLast7Years) %>%
+  filter(DelinquenciesLast7Years > 0, !is.na(DelinquenciesLast7Years)) %>%
+  summary()
+```
+
+
+The argument for two separate groups can be seen to be quite strong through the change in median and mean; both median and mean increased by around 8 delinquencies in the last seven years when people with zero delinquencies are treated as a separate group. From a banks' point of view, having at least one delinquency may be sign your a likely to have another, or a least more likely to have another one compared to someone who has had none.
+
+
+
+
+
+
+
+
+
+* **AvailableBankcardCredit**
+
+
+```{r, echo=F, message=F, warning=F}
+str(loan_data$BankcardUtilization)
+```
+
+```{r, echo=F, message=F, warning=F}
+ggplot(data = loan_data, aes(x = AvailableBankcardCredit)) + 
+  geom_histogram(binwidth = 5000)
+```
+
+
+```{r, echo=F, message=F, warning=F}
+summary(loan_data$AvailableBankcardCredit)
+```
+
+```{r, echo=F, message=F, warning=F}
+loan_data %>%
+  filter(AvailableBankcardCredit == 0) %>%
+  count()
+```
+
+This is a strongly right-skewed distribution due to some extreme outliers, and has a significant number of observations (4881) of available bankcard credit equal to zero (making a log transformation unsuitable).
+
+Applying a square-root transformation to make the distribution more normal since most values are clustered towards zero:
+
+```{r, echo=F, message=F, warning=F, fig.width=12, fig.height=5}
+ggplot(data = loan_data, aes(x = AvailableBankcardCredit)) + 
+  geom_histogram(binwidth = 2) + 
+  scale_x_sqrt(breaks = seq(0, 50000, 5000)) +
+  coord_cartesian(xlim = c(0, 50000)) +
+  geom_vline(xintercept = 4100, color = "darkblue", linetype = 2) +
+  geom_vline(xintercept = 11210, color = "red", linetype = 4) +
+  geom_text(aes(x = 3200, y = 3250, label = "Median")) +
+  geom_text(aes(x = 10000, y = 3250, label = "Mean")) 
+```
+
+Median and mean lines are also added to the plot to highlight the affect of the extreme outliers.
+
+
+
+
+
+
+
+
+
+* **"DebtToIncomeRatio"**
+
+
+```{r, echo=F, message=F, warning=F}
+str(loan_data$DebtToIncomeRatio)
+```
+
+```{r, echo=F, message=F, warning=F}
+ggplot(data = loan_data, aes(x = DebtToIncomeRatio)) +
+  geom_histogram(binwidth = 0.05)
+```
+
+
+```{r, echo=F, message=F, warning=F}
+prop.table(table(cut(loan_data$DebtToIncomeRatio, c(0,2.5,9.9,10.5))))
+```
+
+Here we can can see a almost normal distribution with right-skew present combined with some anomalous looking outliers at a debt-to-income ration of 10
+
+
+
+Filtering out extreme outliers:
+
+```{r, fig.width=12, fig.height=4, echo=F, message=F, warning=F}
+ggplot(data = loan_data %>% filter(DebtToIncomeRatio < 1.5), aes(x = DebtToIncomeRatio)) +
+  geom_histogram(binwidth = 0.01) +
+  scale_x_continuous(breaks = seq(0, 1.5, 0.05))
+  
+```
+
+Number of cases where "DebtToIncomeRatio" is equal to zero:
+
+```{r, echo=F, message=F, warning=F}
+loan_data %>% 
+  filter(DebtToIncomeRatio == 0) %>%
+  count()
+```
+
+Countering right skew by applying a square-root transformation to counter the right skew  and investigating the affect of the outliers on the mean of the distribution:
+
+```{r, fig.width=12, fig.height=4, echo=F, message=F, warning=F}
+ggplot(data = loan_data %>% filter(DebtToIncomeRatio < 1.5), aes(x = DebtToIncomeRatio)) +
+  geom_histogram(binwidth = 0.03) +
+  scale_x_sqrt(breaks = seq(0, 1.25, 0.1)) +
+  geom_vline(xintercept = 0.276, color = "orange", linetype = 2) +
+  geom_vline(xintercept = 0.2419, color = "lightblue", linetype = 4) +
+  geom_text(aes(x = 0.18, y = 1500, label = "Mean With \n No Ouliers"), color = "lightblue") +
+  geom_text(aes(x = 0.35, y = 1500, label = "Mean With \n Ouliers"), color = "orange") 
+  
+```
+
+
+```{r, echo=F, message=F, warning=F}
+summary(loan_data$DebtToIncomeRatio)
+```
+
+```{r, echo=F, message=F, warning=F}
+loan_data %>% 
+  select(DebtToIncomeRatio) %>%
+  filter(DebtToIncomeRatio < 1.5) %>%
+  summary()
+```
+
+Lines have been added to highlight the change in mean due to including the outliers. It would be useful to know how this variable is related to a persons income and credit grade, and if it is a strong predictor of what loan type a person may receive. 
+
+
+
+
+
+
+
+
+
+
+* **"IncomeRange"**
+
+
+```{r, echo=F, message=F, warning=F}
+str(loan_data$IncomeRange)
+```
+
+Ordering from low to high income:
+
+```{r, fig.width=10, fig.height= 5, echo=F, message=F, warning=F}
+ggplot(data = loan_data, aes(x = factor(IncomeRange,levels(IncomeRange)[c(7,8,1,2,4:6,3)]))) + 
+  geom_bar()
+```
+
+
+```{r, echo=F, message=F, warning=F}
+prop.table(table(loan_data$IncomeRange))
+```
+
+
+Most people (~55%) appear to have an income between \$25,000 and \$74,999. Income is likely a strong factor for deciding if and what type of loan a person may be eligible for. Therefore, investigating what type of loans high earners (i.e. \$100,000+) receive compared to lower incomes (i.e. \$1-24,999) could provide some insightful information.
+
+
+
+
+
+* **"IncomeVerifiable"**
+
+
+```{r, echo=F, message=F, warning=F}
+str(loan_data$IncomeVerifiable)
+```
+
+```{r, echo=F, message=F, warning=F}
+summary(loan_data$IncomeVerifiable)
+```
+
+```{r, echo=F, message=F, warning=F}
+prop.table(table(loan_data$IncomeVerifiable))
+```
+
+
+Most people (92%) have a verifiable income.
+
+
+
+
+
+
+
+
+
+* **"LoanOriginalAmount"**
+
+
+```{r, echo=F, message=F, warning=F}
+str(loan_data$LoanOriginalAmount)
+```
+
+```{r, echo=F, message=F, warning=F, fig.width=10, fig.height=5}
+ggplot(data = loan_data, aes(x = LoanOriginalAmount)) +
+  geom_histogram(binwidth = 2000) +
+  scale_x_continuous(breaks = seq(0,36000, 2000))
+```
+
+This distribution appears to be moderately right-skewed with most observations closer clustered towards zero.
+
+
+```{r, echo=F, message=F, warning=F}
+summary(loan_data$LoanOriginalAmount)
+```
+
+A typical loan amount is likely between \$6500 and \$8337. The minimum loan amount appears to be \$1000, and the maximum appears to be \$35,000.
+
+
+Changing the histogram binwidth to better inspect the structure of this distribution:
+
+```{r, fig.width=15, fig.height=5, echo=F, message=F, warning=F}
+ggplot(data = loan_data, aes(x = LoanOriginalAmount)) +
+  geom_histogram(binwidth = 500) +
+  scale_x_continuous(breaks = seq(0,35000, 1000))
+```
+
+
+
+```{r, fig.width=15, fig.height=5, echo=F, message=F, warning=F}
+ggplot(data = loan_data, aes(x = LoanOriginalAmount)) +
+  geom_histogram(binwidth = 50) +
+  #coord_cartesian(xlim = c(0, 16000))
+  scale_x_continuous(limits = c(0,20000),breaks = seq(0,35000, 1000))
+```
+
+```{r, fig.width=15, fig.height=5, echo=F, message=F, warning=F}
+ggplot(data = loan_data, aes(x = LoanOriginalAmount)) +
+  geom_histogram(binwidth = 100) +
+  ylim(0,7500) +
+  #xlim(0,5000) +
+  #coord_cartesian(xlim = c(0, 5000), ylim = c(0,1000))
+  scale_x_continuous(limits = c(1000,5000), breaks = seq(0,5000, 500))
+```
+
+
+
+
+
+
+
+
+Large peaks at loan amounts \$4000, \$10,000, and \$15,000 can be seen. Looking at the loan amount on a smaller scale, it looks like common loan amounts are multiples of \$500. 
+
+As loan amount is probably the most important requirement for someone seeking a loan, I would very much like to know how these loan amounts are related to factors such as income, debt, credit grade, homeowner, etc., for potential customers.  
+
+
+
+
+
+
+
+* **"ListingCreationDate"**
+
+
+```{r, echo=F, message=F, warning=F}
+str(loan_data$ListingCreationDate)
+```
+
+
+```{r, echo=F, message=F, warning=F}
+ggplot(data = loan_data, aes(x = date(ListingCreationDate))) + 
+  geom_histogram(binwidth = 365)
+```
+
+This is time-series data; two peaks can be seen, one around 2008 and another around 2014.
+
+Investigating "ListCreationDate" on a weekly scale:
+
+```{r, echo=F, message=F, warning=F}
+ggplot(data = loan_data, aes(x = date(ListingCreationDate))) + 
+  geom_histogram(binwidth = 7) 
+```
+
+It is clear that, instead of a peak at 2008, it is actually a trough during 2008, showing a sharp drop in activity. There also appears to be a dip in loan creations at the start of 2013.
+
+
+
+Zooming in on region with very low values:
+
+```{r, echo=F, message=F, warning=F}
+ggplot(data = loan_data, aes(x = date(ListingCreationDate))) + 
+  geom_histogram(binwidth = 7) + 
+  coord_cartesian(xlim = c(ymd("2008-06-01"), ymd("2010-01-01")))
+```
+
+Therefore, we can see an anomalous period of very little activity (new loans), lasting around 9 months from around October 2008. 
+
+It might be possible to reveal trends over time by comparing this data with other variable, i.e. has the average APR increased or decreased over time?
+
+
+
+
+
+
+* **LoanOriginalAmount/AvailableBankcardCredit**
+
+Based upon the saying "money makes money", I thought it would interesting to consider a new variable:  LoanOriginalAmount/AvailableBankcardCredit. This variable can be used to see if a persons' available bankcard credit determines how big a loan they can receive, i.e. above 1 indicates the loan is greater than their available bankcard credit and below 1 indicates the opposite.
+
+
+```{r, fig.width=12, fig.height=5, echo=F, message=F, warning=F}
+ggplot(data = loan_data, aes(x = LoanOriginalAmount/(AvailableBankcardCredit+1))) +
+  geom_histogram() 
+```
+
+This distribution is strongly right-skewed with a large peak near zero. Note, "+1" has been added to "AvailableBankcardCredit" to avoid non-finite values for when this variable equals zero.
+
+
+Changing the binwidth and scaling by log10 to counter the strong skew:
+
+```{r, fig.width=12, fig.height=5, echo=F, message=F, warning=F}
+ggplot(data = loan_data, aes(x = LoanOriginalAmount/(AvailableBankcardCredit+1))) +
+  geom_histogram(binwidth = 0.1) +
+  scale_x_log10()
+```
+
+
+
+```{r, echo=F, message=F, warning=F}
+loan_data %>%
+  select(AvailableBankcardCredit, LoanOriginalAmount) %>%
+  filter(AvailableBankcardCredit != 0) %>%
+  summarise(mean_loa_abc = mean(LoanOriginalAmount/(AvailableBankcardCredit+1)), median_loa_abc = median(LoanOriginalAmount/(AvailableBankcardCredit+1)), max_loa_abc = max( LoanOriginalAmount/(AvailableBankcardCredit+1)), min_loa_abc = min( LoanOriginalAmount/(AvailableBankcardCredit+1)))
+  
+```
+
+
+```{r, echo=F, message=F, warning=F}
+ prop.table(table(cut(loan_data$LoanOriginalAmount/(loan_data$AvailableBankcardCredit+1), c(0,1,9000))))
+```
+
+
+The result is, that most people (~62%), obtain a loan which is greater than the available bankcard credit they have. This is also shown by a median ratio of 1.56 (the mean is much higher due to the strong right-skew in the distribution). Still, a non-significant proportion of people (~37%) have available bankcard credit greater than the loan they obtained. It would be interesting to investigate the differences between these two groups. A smaller peak to the right of the main peak can also be seen in this distribution. This is there due to the "+1" that was added to the "AvailableBankcardCredit" variable, and indicates a group of people whose available bankcard credit is equal to zero. It would also be intriguing to see what type of loan this group has access to. 
+
+
+
+
+
+
+
+# Univariate Analysis
+
+### What is the structure of your dataset?
+
+* **"CreditGrade"**
+
+CreditGrade categories going from good to poor are: "AA"  "A" "B"  "C"  "D"  "E"  "HR" "NC". A large number of entries (84,984) are assigned to an unnamed category (""). Excluding this category, the top three most common categories are "C", "D", and "B" in descending order.
+
+
+
+* **"Term"**
+
+There appears to be only three different term lengths available: 12, 36, and 60 months, with proportions of approximately 1.5%, 77%, and 21.5% respectively.
+
+
+
+* **"BorrowerAPR"**
+
+The mean and median Borrower APR are 0.21883% and 0.20976% respectively. This variable has a very broad almost normal distribution with a large spike in BorrowerAPR at approximately 0.3580 %. This could possible be to due a link to the inflation rate combined with a large number of people taking out loans at the same time causing a spike.
+
+
+
+* **"ListingCategory..Numeric."**
+
+Here we can see the listing categories follow the Pareto principle quite closely, as 20% of the listing categories are responsible for approximately 80% of the observations, with "1" corresponding to "Debt Consolidation" being the largest, accounting for over half the observations. 
+
+The listing categories are as follows: 0 - Not Available, 1 - Debt Consolidation, 2 - Home Improvement, 3 - Business, 4 - Personal Loan, 5 - Student Use, 6 - Auto, 7- Other, 8 - Baby&Adoption, 9 - Boat, 10 - Cosmetic Procedure, 11 - Engagement Ring, 12 - Green Loans, 13 - Household Expenses, 14 - Large Purchases, 15 - Medical/Dental, 16 - Motorcycle, 17 - RV, 18 - Taxes, 19 - Vacation, 20 - Wedding Loans
+
+
+
+* **"EmploymentStatus"**
+
+There again seems to be an unnamed category this time with 2255 observations. The majority of people have indicated either "Employed" or "Full-time" with proportions of 59% and 23% respectively.
+
+
+
+* **"EmploymentStatusDuration"**
+
+After transformation, this variable has an almost normal distribution with a long right tail. This skew can be observed also by the difference between the median and mean which are approximately 5.6 and 8.0 years respectively.
+
+
+
+* **"IsBorrowerHomeowner"**
+
+This is a binary categorical variable showing an almost 50-50 split for homeowners and non-homeowners.
+
+
+* **"CurrentCreditLines"**
+
+This can be seen to be a categorical variable with an almost normal distribution and a moderate right skew. It has a mean and median of approximately 10 current credit lines.
+
+
+* **"OpenRevolvingAccounts"**
+
+This variable is very similar to the "CurrentCreditLines" variable but slightly more skewed with a mean and median of approximately 7 and 6 accounts respectively.
+
+
+* **"InqueriesLast6Months"**
+
+This variable is extremely right-skewed. Most results are clustered around zero, with over 80% of people reporting 3 inquiries or less.
+
+
+* **"DelinquenciesLast7Years"**
+
+The variable "DelinquenciesLast7Years" is highly right skewed due to outliers with quite extreme values. The majority of people (~ 67%) do not have delinquencies in the last 7 years. Out of those those that have at least one delinquency, the median and mean number of delinquencies is 8 and 13 respectively (rounding upward for the mean), compared to 0 and 4 delinquencies for when these values are not excluded.
+
+
+
+* **"AvailableBankcardCredit"**
+
+This is a strongly right-skewed distribution with extreme outliers. It also contains a large spike at zero. Due to the high amount of skew, there is a large difference between the median and mean with values at \$4100 and \$11,210 respectively.
+
+
+* **"DebtToIncomeRatio"**
+
+This variable appears to be approximately normal with moderate right-skew alongside some extreme outliers, particularly at a DebtToIncomeRatio of 10. These high values may possibly be due to students leaving university, just starting their careers, with very large amounts of debt. Excluding these outliers has the effect of changing the mean from 0.276 to 0.242, i.e. reducing the amount of skew.
+
+
+* **"IncomeRange"**
+
+This is a categorical variable with levels (going from low to high for dollar amounts): \$0; \$1-24,999; \$25,000-49,999; \$50,000-74,999; \$75,000-99,999; \$100,000+ ; Not displayed; Not employed 
+
+
+* **"IncomeVerifiable"**
+
+This is a categorical variable with two levels. At 92%, the vast majority of people have a verifiable income.
+
+
+* **"LoanOriginalAmount"**
+
+The overall distribution is right-skewed and, from loan amount observations, spikes can be seen for certain loan amounts. Particularly prominent loan amounts appear to be for loans of: \$4000, \$10,000, and \$15,000.
+
+
+* **"ListingCreationDate"**
+
+This variable has a date time format. Dropping the time (H:M:S) part of the observations and plotting a histogram allows us to see the activity of the bank on a more suitable scale. There is a clear cease in activity from around October 2008 to July 2009 which is most likely due to the economic recession that occurred around that time. An increase in loan activity can also seen to be peaking around the start of 2014.
+
+
+
+
+### What is/are the main feature(s) of interest in your dataset?
+
+I would like to explore the features that a potential customer looking for a loan would care about, i.e. What loan amount could I get? What interest could I get on such a loan? How long will I have to pay the loan back? Therefore my main features are LoanOriginalAmount, BorrowerAPR, and Term.
+
+### What other features in the dataset do you think will help support your investigation into your feature(s) of interest?
+
+Features which are likely to influence the above variables include: IncomeRange, DebtToIncomeRatio, CreditGrade, AvailableBankcardCredit, CurrentCreditLines, and IsBorrowerHomeowner. These are also features that the customer themselves would know, and would therefore be useful answering questions like: how does my income range/credit grade affect what amount of loan/APR? 
+
+
+### Did you create any new variables from existing variables in the dataset?
+
+After plotting the "Term" variable, it was apparent that only three different terms are available. Therefore, I created a new variable which is a categorical version of this variable as it only has discrete values and this will be more useful for comparing against other variables. 
+
+A new variable, LoanOriginalAmount/(AvailableBankcardCredit+1), was also created. This was to investigate what proportion of people have available bankcard credit that is greater or smaller compared to the loan they receive. 
+
+
+### Of the features you investigated, were there any unusual distributions? Did you perform any operations on the data to tidy, adjust, or change the form of the data? If so, why did you do this?
+
+I log transformed or square-root transformed multiple variables which contained a moderate to strong amount of skew in order to produce a more normal distribution. I also noted more than one categorical variable with an unnamed level i.e. the unnamed category for "CreditGrade" was removed to visualise the data more clearly. These levels will most likely also be removed during the bivariate analysis since it is likely no significance can be attached to them.
+
+The "BorrowerAPR" distribution contains an odd peak at around 0.35% which, as of yet, has no clear origin. The "DebtToIncomeRatio" variable also has an increase in some extreme outliers at a ratio of exactly 10, which is quite strange and also quite hard to explain. It is possible this was the maximum value that was available to pick when entering this ratio,  hence the increase of observations at this value.
+
+
+
+
+* * *
+# Bivariate Plots Section
+
+
+
+
+```{r,echo=F, message=F, warning=F, fig.width=15}
+#ggcorr(loan_data %>% select(Term, BorrowerAPR,EmploymentStatusDuration, CurrentCreditLines, OpenRevolvingAccounts, InquiriesLast6Months, DelinquenciesLast7Years), nbreaks=8, palette='RdGy', label=TRUE, label_size=5, label_color='black')
+```
+
+```{r, fig.width=18, fig.height=12,echo=F, message=F, warning=F}
+#pairs.panels(loan_data %>% select(Term, CreditGrade, BorrowerAPR, IncomeVerifiable, IncomeRange, IsBorrowerHomeowner, ListingCategory..numeric., BorrowerAPR,EmploymentStatusDuration))
+```
+
+
+
+
+Creating a pairwise plot of (what I have deemed) the most important variables:
+
+```{r, fig.width=30, fig.height=26,echo=F, message=F, warning=F}
+ggpairs(loan_data %>% select(Term_factor, CreditGrade, IncomeRange, BorrowerAPR, CurrentCreditLines,  DelinquenciesLast7Years, DebtToIncomeRatio, LoanOriginalAmount, AvailableBankcardCredit),lower = list(continuous = wrap("points", shape = I('.'))), upper = list(continuous = wrap("cor", size = 12),combo = wrap("box", outlier.shape = I('.'))))
+```
+
+From this plot, it is possible to see that a lot of the variables are poorly correlated (i.e. LoanOriginalAmount vs DebtToIncomeRatio with a value of 0.01), with low correlation values. This section will look at variable pairings with the higher correlation values. 
+
+
+Investigating first factors linked with "LoanOriginalAmount"; looking at loan amount and available bankcard credit and also zooming in to exclude outliers:
+
+```{r, fig.width=10, echo=F, message=F, warning=F}
+ggplot(data = loan_data, aes(x = AvailableBankcardCredit , y = LoanOriginalAmount)) + 
+  geom_point(alpha = 1/5, position = "jitter") +
+  coord_cartesian(xlim=c(0,100000))
+```
+
+There appears to be a high volume of loans for under \$10,000 for people with a lower AvailableBankcardCredit. There also appears to be a slight negative correlation in this region which contradicts the positive value in the pairwise plot. This is likely due to the large amount of loans at multiples of \$5000 which seem independent of available bankcard credit. 
+
+```{r, fig.width=10, echo=F, message=F, warning=F}
+ggplot(data = loan_data, aes(x = CurrentCreditLines , y = LoanOriginalAmount)) + 
+  geom_point(alpha = 1/20, position = "jitter") +
+  coord_cartesian(xlim=c(0,30))
+```
+
+From the correlation matrix, the correlation value is 0.2, and from looking at the plot, a slight positive correlation can be seen. It would be interesting to check what income and credit grade this trend can be broken down into.
+
+
+
+
+
+```{r, fig.width=10, fig.height=5, echo=F, message=F, warning=F}
+ggplot(data = loan_data, aes(x = AvailableBankcardCredit, y = BorrowerAPR)) + 
+  geom_point(alpha = 1/20, position = "jitter") +
+  coord_cartesian(xlim = c(0,100000), ylim = c(0.05,0.45))
+```
+
+A negative correlation can be observed here; APR seems to increase as the available credit decreases.
+
+```{r, fig.width=12, fig.height=6, echo=F, message=F, warning=F}
+ggplot(data = loan_data , aes(x = LoanOriginalAmount, color = factor(IncomeRange,levels(IncomeRange)[c(7,8,1,2,4:6,3)]))) +
+  geom_density(size = 1) +
+  scale_color_brewer(palette = "Set1", aes(name = "Income Range"))
+```
+
+Here a slight trend can be observed where, the higher loan amount, the larger there is a proportion of people from higher income brackets.
+
+
+```{r, fig.width=12, fig.height=6, echo=F, message=F, warning=F}
+ggplot(data = loan_data %>% filter(CreditGrade != "") , aes(x = LoanOriginalAmount, color = factor(CreditGrade, levels(CreditGrade)[c(1,3,2,4:9)]))) + geom_density(size = 1) +
+  scale_color_brewer(palette = "Set1", aes(name = "Credit Grade"))
+```
+
+A similar trend to the last plot can be seen here: lower loan amounts seem much more common for people with poorer credit grades and higher loan amounts have a larger proportion of people with better credit grades.
+
+
+```{r, fig.width=12, fig.height=6, echo=F, message=F, warning=F}
+ggplot(data = loan_data, aes(x = BorrowerAPR, color = factor(IncomeRange,levels(IncomeRange)[c(7,8,1,2,4:6,3)]))) +
+  geom_density(size = 1)  +
+  scale_color_brewer(palette = "Set1", aes(name = "Income Range"))
+```
+
+It appears that the lower the income bracket, the more likely you are to be given a higher APR.
+
+
+
+```{r, fig.width=12, fig.height=6, echo=F, message=F, warning=F}
+ggplot(data = loan_data %>% filter(CreditGrade != "") , aes(x = BorrowerAPR, color = factor(CreditGrade, levels(CreditGrade)[c(1,3,2,4:9)]))) +
+  geom_density(size = 1) +
+  scale_color_brewer(palette = "Set1", aes(name = "Credit Grade"))
+```
+
+From this plot, there is a clear relationship between APR and credit grade; the better the credit grade, the better the APR.
+
+
+
+```{r, fig.width=10, fig.height=5, echo=F, message=F, warning=F}
+ggplot(data = loan_data, aes(x = factor(IncomeRange,levels(IncomeRange)[c(7,8,1,2,4:6,3)]), y = LoanOriginalAmount)) + 
+  geom_boxplot()
+```
+
+The median loan amount can be seen to increase as income increases, with only a slight increase in variation.
+
+```{r, fig.width=10, fig.height=5, echo=F, message=F, warning=F}
+ggplot(data = loan_data , aes(x =  factor(CreditGrade, levels(CreditGrade)[c(1,3,2,4:9)]), y = LoanOriginalAmount)) + 
+  geom_boxplot() +
+  coord_cartesian(ylim = c(0, 15000))
+```
+
+In general, the median loan amount appears to increase the better the credit grade. The one exception to this appears to be the "AA" rating which breaks the trend. This credit does have the highest variance however and it is possible that with more data we would see this trend continue.
+
+```{r, fig.width=10, fig.height=5, echo=F, message=F, warning=F}
+ggplot(data = loan_data , aes(x = Term_factor, y = LoanOriginalAmount)) + 
+  geom_boxplot() +
+  coord_cartesian(ylim = c(0, 20000))
+```
+
+It appears the the larger the loan, the more likely you are to have a longer term length. 
+
+
+
+```{r, fig.width=10, fig.height=5, echo=F, message=F, warning=F}
+ggplot(data = loan_data , aes(x =  factor(CreditGrade, levels(CreditGrade)[c(1,3,2,4:9)]), y = BorrowerAPR)) + 
+  geom_boxplot()
+```
+
+It appears, from this plot, that the APR will increase the poorer a credit rating someone has. 
+
+
+```{r, fig.width=10, fig.height=5, echo=F, message=F, warning=F}
+ggplot(data = loan_data , aes(x =  factor(IncomeRange,levels(IncomeRange)[c(7,8,1,2,4:6,3)]), y = BorrowerAPR)) + 
+  geom_boxplot() +
+  coord_cartesian(ylim = c(0.1,0.4))
+```
+
+In general, APR appears to decrease for people with high incomes. There seems to be one exception; for people with \$0 incomes, the APR is strangely low. It is possible that \$0 incomes refer to students who may be allowed special, student only, deals which give them low APRs.
+
+
+```{r, fig.width=10, fig.height=5, echo=F, message=F, warning=F}
+ggplot(data = loan_data, aes(x = Term_factor, y = BorrowerAPR)) + 
+  geom_boxplot() +
+  coord_cartesian(ylim = c(0,0.5))
+```
+
+The APR does not seem to be greatly affected by the term of the loan. It seems, however, that the APR of 60 month loans are less likely to fluctuate as much as other terms as seen from the smaller variance from this plot. 
+
+
+
+```{r, fig.width=10, fig.height=5, echo=F, message=F, warning=F}
+ggplot(data = loan_data, aes(x = Term_factor, y = DebtToIncomeRatio)) + 
+  geom_boxplot() +
+  coord_cartesian(ylim = c(0,0.5))
+```
+
+
+It appears that a longer term is associated with a higher debt to income ratio. This would make sense as a lower ratio would imply a higher disposable income allowing for a loan to be payed back quicker, therefore, requiring less time to pay it back.
+
+
+
+
+
+
+# Bivariate Analysis
+
+### Talk about some of the relationships you observed in this part of the investigation. How did the feature(s) of interest vary with other features in the dataset?
+
+Against my intuition, the loan amount was not very strongly correlated to the debt to income ratio. A slight negative correlation between loan amount and available bankcard credit was observed. However, a few strong relationships were apparent from these plots; as credit grade improved, APR appears to decrease while the median loan amount increases. Additionally, as the income bracket increased, the median loan amount appeared to increase while the APR seemed to decrease. It was also apparent the the term of the loan did not have much effect on the APR but a longer term does seem to be more common with a larger loan. 
+
+### Did you observe any interesting relationships between the other features (not the main feature(s) of interest)?
+
+It appears that people with a lower debt to income ratio require less time (i.e. shorter terms) to pay back their loans.
+
+### What was the strongest relationship you found?
+
+In terms of correlation between two numerical variables, the strongest relationship was between BorrowerAPR and AvailableBankcardCredit with a correlation value of -0.349. However, the categorical variables such as IncomeRange and CreditGrade were more insightful as clear changes in the median values of for LoanOriginalAmount and BorrowerAPR could be seen for different levels within these variables. 
+
+
+
+
+
+
+
+* * *
+# Multivariate Plots Section
+
+
+Investigating how LoanOriginalAmount, BorrowerAPR, and Term are related to the other variables of interest:
+
+```{r, , fig.width=10, fig.height=5, echo=F, message=F, warning=F}
+ggplot(data = loan_data %>% filter(CreditGrade!=""), aes(x = AvailableBankcardCredit, y = LoanOriginalAmount, color = factor(CreditGrade, levels(CreditGrade)[c(1,3,2,4:9)]))) +
+  geom_point(position = "jitter") +
+  xlim(0,50000)+
+  scale_color_brewer(palette = "RdYlGn", aes(name = "Credit Grade")) 
+```
+
+Lower credit grades appear to have a smaller range and variance of available bankcard credit as well as loan amounts.
+
+
+
+
+
+```{r, , fig.width=10, fig.height=5, echo=F, message=F, warning=F}
+ggplot(data = loan_data , aes(x = AvailableBankcardCredit, y = LoanOriginalAmount, color = factor(IncomeRange,levels(IncomeRange)[c(7,8,1,2,4:6,3)]))) +
+  geom_point(position = "jitter") +
+  coord_cartesian(xlim = c(0,100000)) +
+  scale_color_brewer(palette = "RdYlBu", aes(name = "Income Range")) 
+```
+
+Similar to the previous credit grade plot, it appears that the largest loan amounts (i.e. \$30,000 or above) are mostly limited to people with the highest income grade (\$100,000+). These people also seem more likely to have a large available bankcard credit compared to lower income ranges.  
+
+
+```{r, , fig.width=10, fig.height=5, echo=F, message=F, warning=F}
+ggplot(data = loan_data , aes(x = DebtToIncomeRatio, y = LoanOriginalAmount, color = factor(IncomeRange,levels(IncomeRange)[c(7,8,1,2,4:6,3)]))) +
+  geom_point(position = "jitter") +
+  #coord_cartesian(xlim = c(0,1)) +
+  scale_color_brewer(palette = "RdYlBu", aes(name = "Income Range")) 
+```
+
+Although it is quite a weak correlation, it appears that for people with income ranges of \$1-24,999 an increase in debt-to-income ratio limits the maximum amount of loan possible. This excludes people with a ratio of 10, where there seems to be an odd increase in the amounts of people with this type of income range who also manage to obtain relatively large loans.
+
+
+
+```{r, fig.width=10, echo=F, message=F, warning=F}
+ggplot(data = loan_data %>% filter(CreditGrade!=""), aes(x = CurrentCreditLines , y = LoanOriginalAmount,  color = factor(CreditGrade, levels(CreditGrade)[c(1,3,2,4:9)]))) + 
+  geom_point(position = "jitter") +
+  coord_cartesian(xlim=c(0,30)) +
+  scale_color_brewer(palette = "RdYlGn", aes(name = "Credir Grade")) 
+```
+
+There does not seem to be any new information to draw from this plot considering the previous two plots.
+
+```{r, fig.width=12, fig.height=5}
+ggplot(data = loan_data , aes(x = LoanOriginalAmount/(AvailableBankcardCredit+1), color =  factor(IncomeRange,levels(IncomeRange)[c(7,8,1,2,4:6,3)]))) +
+  geom_density(size =1) +
+  scale_x_log10() +
+  scale_color_brewer(palette = "RdYlBu", aes(name = "Income Range")) 
+```
+
+As it is hard to discern any significant change in the mean for different categories of income range when considering this variable, it is possible that variable has a week relationship with income range.
+
+```{r, fig.width=10, fig.height=5, echo=F, message=F, warning=F}
+ggplot(data = loan_data, aes(x = 50*round(DebtToIncomeRatio/50,3), y = LoanOriginalAmount, color = IsBorrowerHomeowner)) + 
+ # geom_point(alpha = 1/10, position = "jitter") +
+  coord_cartesian(xlim = c(0,1.5), ylim = c(0,12500)) +
+  geom_line(fun.y = mean, stat = "summary", size = 1)
+
+```
+
+There appears to be a significant difference in loan amount for homeowners and non-homeowners. It would be interesting to see how "IsBorrowerHomeowner" affects other variables such as "BorrowerAPR".
+
+
+```{r, fig.width=10, fig.height=5, echo=F, message=F, warning=F}
+ggplot(data = loan_data, aes(x = AvailableBankcardCredit, y = LoanOriginalAmount, color = factor(CreditGrade, levels(CreditGrade)[c(1,3,2,4:9)]))) +
+  geom_point(position = "jitter") +
+  xlim(0,50000) +
+  facet_wrap(~ Term_factor, ncol = 2) +
+  scale_color_brewer(palette = "Set1", aes(name = "Credit Grade"))
+```
+
+Wrapping the plots by "Term" gives some surprising results. There appears to be only one term length (36 months) for which credit grades are (properly) recorded. It is possible to look at this further by investigating how credit grade has changed over time:
+
+
+```{r, fig.width=10, fig.height=5, echo=F, message=F, warning=F}
+ggplot(data = loan_data  %>%arrange(desc(date(ListingCreationDate))) , aes(x = year(ListingCreationDate), y = BorrowerAPR, color = factor(CreditGrade, levels(CreditGrade)[c(1,3,2,4:9)]))) +
+  geom_point(alpha = 1/50) +
+  geom_line(stat = "summary", fun.y = mean) +
+  scale_color_brewer(palette = "Set1", aes(name = "Credit Grade"))
+```
+
+It can be seen that in some point in 2008, the levels of credit grade ceased to be recorded. There also appears to be a relationship between credit grade and APR. Investigating BorrowerAPR further:
+
+
+```{r, , fig.width=10, fig.height=5, echo=F, message=F, warning=F}
+ggplot(data = loan_data , aes(x = AvailableBankcardCredit, y = BorrowerAPR, color = factor(IncomeRange,levels(IncomeRange)[c(7,8,1,2,4:6,3)]))) +
+  geom_point(position = "jitter") +
+  coord_cartesian(xlim = c(0,100000)) +
+  scale_color_brewer(palette = "RdYlBu", aes(name = "Income Range")) 
+```
+
+Lower loan APRs also seem more common with people who have higher available bankcard credit and income bracket.
+
+
+```{r, , fig.width=10, fig.height=5, echo=F, message=F, warning=F}
+ggplot(data = loan_data , aes(x = CurrentCreditLines, y = BorrowerAPR, color = factor(IncomeRange,levels(IncomeRange)[c(7,8,1,2,4:6,3)]))) +
+  geom_point(position = "jitter") +
+  coord_cartesian(xlim = c(0,30)) +
+  scale_color_brewer(palette = "RdYlBu", aes(name = "Income Range"))
+```
+
+There does not appear to be much of a correlation between APR and current credit lines. However, the distribution of current credit lines is interesting in that lower income brackets (i.e. below \$25,000) appear to very rarely have over 10 current credit lines whereas 10 or more credit lines seems much more common for higher income brackets.
+
+```{r, fig.width=10, fig.height=5, echo=F, message=F, warning=F}
+ggplot(data = loan_data, aes(x = LoanOriginalAmount , y = BorrowerAPR, color =  factor(IncomeRange,levels(IncomeRange)[c(7,8,1,2,4:6,3)]))) + 
+  geom_point(position = "jitter")  +
+  scale_color_brewer(palette = "RdYlBu", aes(name = "Income Range"))
+```
+
+Higher loan amounts appear to have less varied and lower APRs.
+
+
+```{r, fig.width=10, fig.height=5, echo=F, message=F, warning=F}
+ggplot(data = loan_data %>% filter(CreditGrade != ""), aes(x = LoanOriginalAmount , y = BorrowerAPR, color = factor(CreditGrade, levels(CreditGrade)[c(1,3,2,4:9)]))) + 
+  geom_point(position = "jitter")  +
+  scale_color_brewer(palette = "RdYlGn", aes(name = "Credit Grade"))
+```
+
+Credit grade appears to be significantly connected to BorrowerAPR. Converting this plot to show mean APR values by credit grade:
+
+```{r, , fig.width=10, fig.height=5, echo=F, message=F, warning=F}
+ggplot(data = loan_data %>% filter(CreditGrade != ""), aes(y = BorrowerAPR , x = round(LoanOriginalAmount/1000,0)*1000)) + 
+  #geom_point() +
+  geom_line(stat = "summary", fun.y = mean, aes(color = factor(CreditGrade, levels(CreditGrade)[c(1,3,2,4:9)])), size = 1) +
+  scale_color_brewer(palette = "Set1", aes(name = "Credit Grade"))
+```
+
+
+A better credit grade appears to result in a  lower BorrowerAPR.
+
+
+
+```{r, fig.width=10, fig.height=5, echo=F, message=F, warning=F}
+ggplot(data = loan_data %>% filter(CreditGrade != ""), aes(x = AvailableBankcardCredit, y = BorrowerAPR, color = factor(CreditGrade, levels(CreditGrade)[c(1,3,2,4:9)]))) + 
+  geom_point(position = "jitter") +
+  coord_cartesian(xlim = c(0,200000)) +
+  scale_color_brewer(palette = "Set1", aes(name = "Credit Grade"))
+```
+
+The relationship from the previous plot can again be seen when investigating available bankcard credit. It is also noticeable that those with the highest available bankcard credit also appear to have the best credit rating.
+
+
+```{r, fig.width=10, fig.height=5, echo=F, message=F, warning=F}
+ggplot(data = loan_data, aes(x = AvailableBankcardCredit, y = BorrowerAPR, color = factor(IncomeRange,levels(IncomeRange)[c(7,8,1,2,4:6,3)]))) + 
+  geom_point() +
+  coord_cartesian(xlim = c(0,150000)) +
+  scale_color_brewer(palette = "Set1", aes(name="Income Range")) +
+  facet_wrap(~IsBorrowerHomeowner, ncol = 2)
+```
+
+
+# Multivariate Analysis
+
+### Talk about some of the relationships you observed in this part of the investigation. Were there features that strengthened each other in terms of looking at your feature(s) of interest?
+
+From these plots, it is clear that the highest loans and lowest APRs go to people with the best credit grades and highest incomes. It also appears that, people with lower income brackets and poorer credit ratings not only have smaller loans and higher APRs in general (clearly shown by the plot of BorrowerAPR vs LoanOriginalAmount split by CreditGrade), but also have fewer credit lines, available credit, and higher debt-to-income ratios. Owning a home also appears to be connected, in general, with having a higher income (and hence lower APRs) as well as receiving higher loan amounts compared to those who do not own a home.
+
+
+
+### Were there any interesting or surprising interactions between features?
+
+There were some surprising results after investigating the relationship between the loan term and credit grade. Initially it appeared that a term of 36 months only consisted of properly labelled credit grades. Looking into to this further by checking how the credit grades changed over time, it is apparent that after some point in 2008, credit grades were no longer recorded. This is most likely linked to the drop in activity seen from the univariate exploration section, and is possible (probably) due to a change in regulation after the financial crash in 2008. 
+
+
+
+
+
+
+
+* * *
+# Final Plots and Summary
+
+### Plot One
+
+```{r, fig.width=10, fig.height=5, echo=F, message=F, warning=F}
+ggplot(data = loan_data, aes(x = factor(IncomeRange,levels(IncomeRange)[c(7,8,1,2,4:6,3)]), y = LoanOriginalAmount, fill = factor(IncomeRange,levels(IncomeRange)[c(7,8,1,2,4:6,3)]))) + 
+  geom_boxplot() +
+  coord_cartesian(ylim = c(0,22500)) +
+  labs(title = "Loan Amount by Income Range", x = "Income Range Bracket" , y = "Loan Amount (Dollars)") +
+  theme_minimal() +
+  scale_color_brewer(palette = "Spectral") +
+  guides(fill = "none")
+```
+
+Median values for loan amounts by income bracket:
+```{r, echo=F, message=F, warning=F}
+with(loan_data, tapply(LoanOriginalAmount,IncomeRange, median))
+```
+
+### Description One
+
+In this plot, the distribution of loan amount is split by income bracket; the median loan amount appears to increase as income bracket increases. The highest median loan amount is for the \$100,000+ bracket, with a median of \$12,000. This bracket also has the highest variance, due to this same bracket containing more outliers with high loan amounts. The lowest median amount is for those in the "Not displayed" bracket at \$3033. The \$0 dollar bracket ha s a higher than expected loan amount when compared to neighboring levels which may be due to special circumstances for people classed in this bracket. It also has quite a large variance compared to it's neighbors as well, however, both these factors may be due to the small proportions of people in this bracket (as seen in the univariate exploration section). 
+
+
+
+
+
+
+### Plot Two
+
+```{r, fig.width=15, fig.height=8, echo=F, message=F, warning=F}
+ggplot(data = loan_data  %>%arrange(desc(date(ListingCreationDate))) , aes(x = (year(ListingCreationDate)*12+month(ListingCreationDate))/12, y = BorrowerAPR, color = factor(CreditGrade, levels(CreditGrade)[c(1,3,2,4:9)]))) +
+  coord_cartesian(xlim = c(2006,2014), ylim = c(0.05,0.43)) +
+  geom_point(alpha = 1/30, position = "jitter") +
+  geom_line(stat = "summary", fun.y = mean, size = 1) +
+  scale_color_brewer(palette = "Set1", aes(name = "Credit Grade")) +
+  labs(title = "APR vs Listing Creation Date by Credit Grade", x = "Listing Creation Date", y = "APR (%)") +
+  scale_x_continuous(breaks = seq(2006, 2014, 1)) +
+  theme_minimal()
+```
+
+### Description Two
+
+This shows how "BorrowerAPR" evolves over time by plotting it against the "LoanCreationDate" and it also includes the running mean for APR for each category of credit grade. There are a few noticeable and insightful points that can be gleaned from this plot; firstly, the borrower APR can be seen to be split by credit grade, with better grades being given a lower APR and vice versa. Secondly, there is a period which starts in 2008 from which almost no credit grade information appears to have been recorded. During this period, it looks as if credit grade information ceased to be recorded as from around half way through 2009 onwards, all credit grade information was assigned to an unnamed category. This change in procedure occurs is likely linked to the financial crash in 2008. 
+
+
+### Plot Three
+
+```{r, fig.width=12, fig.height=6, echo=F, message=F, warning=F}
+ggplot(data = loan_data, aes(x = AvailableBankcardCredit, y = BorrowerAPR, color = factor(IncomeRange,levels(IncomeRange)[c(7,8,1,2,4:6,3)]))) + 
+  geom_point() +
+  coord_cartesian(xlim = c(0,150000)) +
+  scale_color_brewer(palette = "Set1", aes(name="Income Range")) +
+  facet_wrap(~IsBorrowerHomeowner, ncol = 2) +
+  labs(title = "APR vs Available Bankcard Credit by Income Range Split by Homeowner and Non-homeowner", x = "Available Bankcard Credit (Dollars)", y = "APR (%)") +
+  theme_minimal() 
+```
+
+### Description Three
+
+This plot shows the APR against available bankcard credit by income range split into a homeowners plot and a non-homeowners plot. I thought splitting the plot by homeowner might be insightful as the sample is made up of almost exactly halve homeowners, halve non-homeowners. Each plot shows the same trend; the higher the income bracket, the lower the APR, as seen by the grouping of orange points (bracket \$25,000 - 49,999) to the top and pink points (\$ 100,000+) to the bottom left. In addition to this, the proportion of the highest income bracket (\$100,000) appears to be much higher for homeowners, seen by the grouping of pink points in the lower left of the "True" plot for "IsBorrowerHomeowner", compared to non-homeowners. There also seems to be a higher proportion of the income bracket \$25,000-49,999 for non-homeowners as seen by the prevalence of orange points in this plot.
+
+
+
+
+* * *
+# Reflection
+
+
+This data set consists of 113,937 observations of 81 variables. Due to the high number of features, one of the challenges of this project was choosing which variables, and combinations of variables, to investigate out of all the possible choices for fear of missing something important. From tackling this project, it is clear that for any future work involving a high number of variables will require smart feature selection and, ideally, some amount of domain knowledge. Due to my lack of domain knowledge for the marketplace lending industry, I decided to investigate a large number of variables in the univariate exploration phase of this project. In the analysis phase of this section, my method was then to pick variables which a customer might want to know about when applying for a loan i.e. How does owning a home affect my potential loan interest rate? Following on from this approach, I would reason that loan amount and loan APR are some of the most important variables in this regard. In the following sections I then explored the relationships between these variables and other variables of interest, exploring new questions that arose from the results of each new observation/lead.
+
+Among discovering numerous points of interest while exploring the data, it was clear that loan amount and loan APR appear to be strongly affected by income range and credit grade. In summary, the higher the income range and/or the better the credit rating, you are likely to be be awarded a larger loan and/or lower APR. From utilisation time-series data from the data set (specifically the "LoanCreationDate" variable), it was possible to see a drop in loan generation in 2008, most likely due to the economic recession that occurred around that time. This seems to have had a significant impact on the industry as further exploration also revealed that credit grade data was no longer recorded after this point. 
+
+
+
+As the most recent data in this data set is from 2014, it is possible that some of the observed trends that were observed do not transfer to current trends in this industry. With regard to the credit grade data, since a large proportion of this data set does not have a category, it is also possible that the observed trends for this variable may not hold when a larger sample size is considered. It is worth noting that since no statistical tests have been carried out, any of the above relationships that have been hypothesised between the variables cannot be declared as statistically significant until this is carried out. For further investigation, it would be very interesting to see similar information for people who applied but were declined a loan, and from this, establish a model which might predict whether someone is likely to be awarded their requested loan (amount and APR) or not. 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
