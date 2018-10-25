@@ -9,4 +9,4 @@ This project was carried out using Udacity's online workspace, hence, only the c
 Thank you for taking the time to look at my work :)
 
 
-[Snippet of project: one of my final plots](plot_1.PNG)
+![Snippet of project: one of my final plots](plot_1.PNG)
